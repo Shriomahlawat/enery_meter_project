@@ -1,3 +1,8 @@
+!pip install scikit-learn
+from pandas import read_csv
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+import pandas as pd
 filename="energy_meter.csv"
 names=['voltage','current','power','class']
 dataset=read_csv(filename,names=names, skiprows=1)
