@@ -9,8 +9,12 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
+from sklearn.preprocessing import LabelEncoder
+import numpy as np
+import warnings
 
-# --- Streamlit App Title ---
+warnings.filterwarnings("ignore")  # suppress sklearn warnings for clean output
+
 st.title("⚡ Energy Meter - Machine Learning Analysis")
 
 # --- Upload Dataset ---
@@ -28,10 +32,21 @@ if uploaded_file is not None:
     st.write(dataset.shape)
 
     st.subheader("Class Distribution")
-    st.write(dataset.groupby('class').size())
+    st.write(dataset['class'].value_counts())
 
     st.subheader("Dataset Statistics")
     st.write(dataset.describe())
+
+    # --- Clean data ---
+    dataset = dataset.dropna()  # remove missing rows
+    for col in ['Voltage', 'Current', 'Power']:
+        dataset[col] = dataset[col].apply(pd.to_numeric, errors='coerce')
+    dataset = dataset.dropna(subset=['Voltage', 'Current', 'Power'])
+
+    # encode class labels if not numeric
+    if not np.issubdtype(dataset['class'].dtype, np.number):
+        encoder = LabelEncoder()
+        dataset['class'] = encoder.fit_transform(dataset['class'])
 
     # --- Visualization Section ---
     st.subheader("🔍 Data Visualization")
@@ -53,39 +68,44 @@ if uploaded_file is not None:
     array = dataset.values
     X = array[:, 0:3]
     y = array[:, 3]
-    X_train, X_validation, Y_train, Y_validation = train_test_split(
-        X, y, test_size=0.20, random_state=1, shuffle=True
-    )
 
-    models = [
-        ('LR', LogisticRegression(solver='liblinear', multi_class='ovr')),
-        ('LDA', LinearDiscriminantAnalysis()),
-        ('KNN', KNeighborsClassifier()),
-        ('CART', DecisionTreeClassifier()),
-        ('NB', GaussianNB()),
-        ('SVM', SVC(gamma='auto')),
-    ]
+    # safety check
+    if len(np.unique(y)) < 2:
+        st.error("❌ Error: Need at least two classes in your dataset for classification.")
+    else:
+        X_train, X_validation, Y_train, Y_validation = train_test_split(
+            X, y, test_size=0.20, random_state=1, shuffle=True
+        )
 
-    results = []
-    names = []
-    res = []
+        models = [
+            ('LR', LogisticRegression(solver='liblinear', multi_class='ovr')),
+            ('LDA', LinearDiscriminantAnalysis()),
+            ('KNN', KNeighborsClassifier()),
+            ('CART', DecisionTreeClassifier()),
+            ('NB', GaussianNB()),
+            ('SVM', SVC(gamma='auto')),
+        ]
 
-    for name, model in models:
-        kfold = StratifiedKFold(n_splits=10, random_state=None)
-        cv_results = cross_val_score(model, X_train, Y_train, cv=kfold, scoring='accuracy')
-        results.append(cv_results)
-        names.append(name)
-        res.append(cv_results.mean())
+        results = []
+        names = []
+        res = []
 
-    st.write("### Model Accuracy Results")
-    for i in range(len(names)):
-        st.write(f"{names[i]}: {res[i]:.4f}")
+        for name, model in models:
+            try:
+                kfold = StratifiedKFold(n_splits=5, random_state=None, shuffle=True)
+                cv_results = cross_val_score(model, X_train, Y_train, cv=kfold, scoring='accuracy')
+                results.append(cv_results)
+                names.append(name)
+                res.append(cv_results.mean())
+                st.write(f"{name}: {cv_results.mean():.4f} ± {cv_results.std():.4f}")
+            except Exception as e:
+                st.warning(f"⚠️ {name} failed: {e}")
 
-    fig, ax = pyplot.subplots()
-    ax.bar(names, res, color='maroon', width=0.6)
-    ax.set_ylim(0.0, 1.0)
-    ax.set_title('Algorithm Comparison')
-    st.pyplot(fig)
-
+        if len(res) > 0:
+            fig, ax = pyplot.subplots()
+            ax.bar(names, res, color='maroon', width=0.6)
+            ax.set_ylim(0.0, 1.0)
+            ax.set_title('Algorithm Comparison')
+            st.pyplot(fig)
 else:
     st.info("👆 Please upload a CSV file to begin.")
