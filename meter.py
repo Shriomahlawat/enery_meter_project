@@ -1,5 +1,5 @@
 import streamlit as st
-from pandas import read_csv
+import pandas as pd
 from pandas.plotting import scatter_matrix
 from matplotlib import pyplot
 from sklearn.linear_model import LogisticRegression
@@ -23,7 +23,7 @@ uploaded_file = st.sidebar.file_uploader("Upload your Energy Meter CSV", type=["
 
 if uploaded_file is not None:
     names = ['Voltage', 'Current', 'Power', 'class']
-    dataset = read_csv(uploaded_file, names=names)
+    dataset = pd.read_csv(uploaded_file, names=names)
 
     st.subheader("📊 Dataset Preview")
     st.write(dataset.head(10))
